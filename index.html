@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Will you play with me?</title>
+<style>
+:root{--bg:#fff3f0;--card:#fff;--ink:#3a2a2e;--sub:#8a757a;--pri:#e0556f;--line:#f0d9dc;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1d1517;--card:#2a1e21;--ink:#f5e8ea;--sub:#b39ea3;--pri:#f0728a;--line:#43303a}}
+:root[data-theme="dark"]{--bg:#1d1517;--card:#2a1e21;--ink:#f5e8ea;--sub:#b39ea3;--pri:#f0728a;--line:#43303a}
+html,body{height:100%}*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;line-height:1.6}
+main{min-height:100%;max-width:480px;margin:0 auto;padding:24px 18px;display:flex;flex-direction:column;justify-content:center}
+.dots{display:flex;gap:6px;justify-content:center;margin-bottom:18px}
+.dots i{width:8px;height:8px;border-radius:50%;background:var(--line)}.dots i.on{background:var(--pri)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:26px 20px;text-align:center;animation:in .35s ease}
+@keyframes in{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
+h1{font-size:28px;margin:6px 0 8px}h2{font-size:20px;margin:0 0 14px}
+.sub{color:var(--sub);font-size:14px}
+.big{font-size:44px}
+button{font:inherit;border:0;border-radius:14px;padding:13px 18px;background:var(--pri);color:#fff;font-weight:700;cursor:pointer}
+button.ghost{background:transparent;color:var(--pri);border:1px solid var(--pri)}
+button:disabled{opacity:.4}
+.row{display:flex;gap:10px}.row button{flex:1;font-size:18px;padding:16px}
+.stack{display:flex;flex-direction:column;gap:10px;margin-top:16px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:10px 0}
+.chip{background:var(--bg);color:var(--ink);border:1px solid var(--line);font-weight:500}
+.chip.sel{background:var(--pri);color:#fff;border-color:var(--pri)}
+input,textarea{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center}
+textarea{text-align:left;min-height:90px}
+.code{font-size:12px;word-break:break-all;text-align:left;background:var(--bg);border:1px dashed var(--line);border-radius:10px;padding:10px;margin-top:10px;max-height:110px;overflow:auto}
+.link{background:none;color:var(--sub);font-size:12px;font-weight:400;text-decoration:underline;margin-top:18px;align-self:center}
+.calh{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-weight:700}
+.calh button{padding:6px 14px;background:var(--bg);color:var(--ink);border:1px solid var(--line)}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.grid span{font-size:11px;color:var(--sub)}
+.day{padding:0;height:38px;background:var(--bg);color:var(--ink);border:1px solid transparent;border-radius:10px;font-weight:500}
+.day.sel{background:var(--pri);color:#fff}.day:disabled{opacity:.25;cursor:default}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script>
+const $=s=>document.querySelector(s);
+const app=$('#app');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const A={ok:null,date:'',time:'',what:'',note:'',name:''};
+/* ===== 設定：ここを書き換える =====
+   Web3Forms（https://web3forms.com ）でメールアドレスを入力して受け取ったアクセスキーを入れる。
+   Formspree等を使う場合は endpoint をそのURLにし、accessKey は空にする。 */
+const CONFIG={endpoint:'https://api.web3forms.com/submit',accessKey:'ac19a152-ea6a-486e-8d44-7cceed01d6ee'};
+const TOTAL=3;
+let finished=false;
+const resetAll=()=>{if(finished)return;Object.assign(A,{ok:null,date:'',time:'',what:'',note:'',name:''});p0()};
+document.addEventListener('visibilitychange',()=>{if(document.hidden)resetAll()});
+addEventListener('pagehide',resetAll);
+const dots=n=>`<div class="dots">${Array.from({length:TOTAL},(_,i)=>`<i class="${i<=n?'on':''}"></i>`).join('')}</div>`;
+const ymd=v=>{if(!v)return'';const d=new Date(v+'T00:00');return d.toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'short'})};
+const encode=o=>btoa(unescape(encodeURIComponent(JSON.stringify(o))));
+const decode=s=>JSON.parse(decodeURIComponent(escape(atob(s.trim()))));
+const summary=a=>a.ok?`行きたい！\n日付：${a.date}\n時間：${a.time}\n遊ぶもの：${a.what}${a.note?'\nひとこと：'+a.note:''}`:`今回はごめんね${a.note?'\nひとこと：'+a.note:''}`;
+
+function page(n,html){app.innerHTML=dots(n)+`<div class="card">${html}</div>`+(n===0?'<button class="link" id="own">招待を送った人はこちら</button>':'');
+  if(n===0)$('#own').onclick=owner}
+
+function p0(){
+  page(0,`<div class="big">💌</div><h1>Will you play with me?</h1>
+  <div class="stack"><div class="row"><button id="y">Yes</button><button id="n" class="ghost">No</button></div></div>`);
+  $('#y').onclick=()=>{A.ok=true;p1()};
+  runaway();
+}
+function runaway(){
+  const n=$('#n'),y=$('#y');
+  let last=0;
+  const dodge=()=>{
+    const w=n.offsetWidth,h=n.offsetHeight;
+    if(!n.dataset.f){
+      const r=n.getBoundingClientRect();
+      const ph=document.createElement('span');ph.style.flex='1';n.parentNode.insertBefore(ph,n);
+      n.dataset.f=1;n.style.cssText+=`position:fixed;flex:none;width:${w}px;left:${r.left}px;top:${r.top}px;z-index:9;transition:left .25s cubic-bezier(.2,1.4,.4,1),top .25s cubic-bezier(.2,1.4,.4,1),transform .25s`;
+    }
+    const m=12,c=n.getBoundingClientRect(),yr=y.getBoundingClientRect();
+    let x,t,k=0;
+    do{x=m+Math.random()*(innerWidth-w-2*m);t=m+Math.random()*(innerHeight-h-2*m);k++}
+    while(k<30&&(Math.hypot(x-c.left,t-c.top)<140||(x<yr.right+10&&x+w>yr.left-10&&t<yr.bottom+10&&t+h>yr.top-10)));
+    n.style.left=x+'px';n.style.top=t+'px';n.style.transform=`rotate(${(Math.random()-.5)*40}deg) scale(${.85+Math.random()*.2})`;
+  };
+  ['pointerenter','pointerdown','mousedown','touchstart','focus','click','keydown'].forEach(ev=>
+    n.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();dodge();if(ev==='focus')n.blur()},{passive:false}));
+  document.addEventListener('pointermove',e=>{
+    if(!document.body.contains(n)||Date.now()-last<120)return;
+    const r=n.getBoundingClientRect(),d=Math.hypot(Math.max(r.left-e.clientX,0,e.clientX-r.right),Math.max(r.top-e.clientY,0,e.clientY-r.bottom));
+    if(d<60){last=Date.now();dodge()}
+  });
+}
+function chips(list,cur){return `<div class="chips">${list.map(t=>`<button class="chip ${cur===t?'sel':''}" data-v="${t}">${t}</button>`).join('')}</div>`}
+function p1(){
+  const now=new Date(),today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const init=A.date?new Date(+A.date.slice(6),+A.date.slice(0,2)-1,1):new Date(today.getFullYear(),today.getMonth(),1);
+  let Y=init.getFullYear(),M=init.getMonth();
+  const p2=n=>String(n).padStart(2,'0');
+  page(1,`<h2>Pick a day 📅</h2><div id="cal"></div>
+  <h2 style="margin-top:22px">What time? 🕒</h2>
+  ${chips(['Morning','Noon','Afternoon','Evening','Night'],A.time)}
+  <div class="stack"><button id="nx" disabled>Next</button></div>`);
+  const u=()=>{$('#nx').disabled=!(A.date&&A.time);document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('sel',c.dataset.v===A.time));document.querySelectorAll('.day').forEach(d=>d.classList.toggle('sel',d.dataset.s===A.date))};
+  const draw=()=>{
+    const first=new Date(Y,M,1).getDay(),n=new Date(Y,M+1,0).getDate();
+    let h=`<div class="calh"><button id="pv" ${Y===today.getFullYear()&&M===today.getMonth()?'disabled':''}>‹</button><span>${new Date(Y,M,1).toLocaleDateString('en-US',{month:'long',year:'numeric'})}</span><button id="nm">›</button></div><div class="grid">`;
+    h+=['Su','Mo','Tu','We','Th','Fr','Sa'].map(d=>`<span>${d}</span>`).join('');
+    for(let i=0;i<first;i++)h+='<i></i>';
+    for(let d=1;d<=n;d++){const s=`${p2(M+1)}/${p2(d)}/${Y}`;h+=`<button class="day" data-s="${s}" ${new Date(Y,M,d)<today?'disabled':''}>${d}</button>`}
+    $('#cal').innerHTML=h+'</div>';
+    $('#pv').onclick=()=>{M--;if(M<0){M=11;Y--}draw()};
+    $('#nm').onclick=()=>{M++;if(M>11){M=0;Y++}draw()};
+    document.querySelectorAll('.day').forEach(b=>b.onclick=()=>{A.date=b.dataset.s;u()});
+    u();
+  };
+  draw();
+  document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{A.time=c.dataset.v;u()});
+  $('#nx').onclick=p3;
+}
+function p3(){
+  page(2,`<h2>What are you feeling? 🎮</h2>
+  <div class="stack">${[['Valorant','🔫'],['LoL','🧙'],['Others','🗣️']].map(([t,i])=>`<button class="chip pick" data-v="${t}" style="padding:16px;font-size:18px"><span style="font-size:26px;vertical-align:middle;margin-right:8px">${i}</span>${t}</button>`).join('')}</div>`);
+  document.querySelectorAll('.pick').forEach(c=>c.onclick=()=>{A.what=c.dataset.v;done()});
+}
+function pNote(){
+  page(3,`<h2>最後にひとこと ✍️</h2><textarea id="m" placeholder="（任意）">${esc(A.note)}</textarea>
+  <div style="margin-top:10px"><input id="nm" placeholder="お名前（任意）" value="${esc(A.name)}"></div>
+  <div class="stack"><button id="nx">返事をまとめる</button></div>`);
+  $('#nx').onclick=()=>{A.note=$('#m').value.trim();A.name=$('#nm').value.trim();done()};
+}
+function done(){
+  finished=true;
+  const code='REPLY:'+encode(A);
+  const text=`【お返事】${A.name?A.name+'より\n':''}${summary(A)}\n\n${code}`;
+  page(4,`<div class="big">🎉</div><h1 style="font-size:24px">I'm looking forward to seeing you!!</h1><div id="fb"></div>`);
+  const fallback=(failed)=>{
+    $('#fb').innerHTML=`<p class="sub">${failed?'自動送信できませんでした。下のボタンで返事を送ってね。':'下のボタンで返事を送ってね。'}</p>
+    <div class="code">${esc(summary(A)).replace(/\n/g,'<br>')}</div>
+    <div class="stack"><button id="cp">返事をコピーする</button>
+    <a href="mailto:?subject=${encodeURIComponent('お返事')}&body=${encodeURIComponent(text)}"><button class="ghost" style="width:100%">メールで送る</button></a></div>
+    <p class="sub" id="st"></p>`;
+    $('#cp').onclick=async()=>{try{await navigator.clipboard.writeText(text);$('#st').textContent='コピーしました ✔'}
+      catch(_){$('#st').innerHTML='<textarea readonly>'+esc(text)+'</textarea>'}};
+  };
+  if(!CONFIG.endpoint){fallback(false);return}
+  const body={subject:'Invite reply: '+(A.ok?'YES':'NO'),from_name:'Invite page',name:A.name||'(no name)',answer:A.ok?'Yes':'No',date:A.date,time:A.time,play:A.what,note:A.note,message:text};
+  if(CONFIG.accessKey)body.access_key=CONFIG.accessKey;
+  fetch(CONFIG.endpoint,{method:'POST',keepalive:true,headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(body)})
+    .then(async r=>{let j={};try{j=await r.json()}catch(_){}if(!r.ok||j.success===false)throw 0})
+    .catch(()=>fallback(true));
+}
+
+/* 送った人用：届いた返事を貼り付けて確認 */
+function owner(){
+  page(0,`<h2>返事を確認する</h2><p class="sub">相手から届いた「REPLY:」で始まる文を貼り付けてください。</p>
+  <textarea id="in" placeholder="REPLY:..."></textarea><div class="stack"><button id="go">確認</button><button class="ghost" id="bk">戻る</button></div><div id="out"></div>`);
+  $('#bk').onclick=p0;
+  $('#go').onclick=()=>{
+    try{const m=$('#in').value.match(/REPLY:([A-Za-z0-9+/=]+)/);const a=decode(m[1]);
+      $('#out').innerHTML=`<div class="code" style="max-height:none;font-size:15px"><b>${a.ok?'✅ OK！':'🍃 今回はお見送り'}</b>${a.name?'（'+esc(a.name)+'）':''}<br>${esc(summary(a)).replace(/\n/g,'<br>')}</div>`}
+    catch(e){$('#out').innerHTML='<p class="sub">読み取れませんでした。「REPLY:」から最後までコピーされているか確認してね。</p>'}
+  };
+}
+p0();
+</script>
+</body>
+</html>
